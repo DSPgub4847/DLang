@@ -1,1 +1,6 @@
+name = "Dhrubajit"
+age = 16
+
 print("Hello DLang!")
+print(name)
+print(age)

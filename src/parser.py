@@ -6,6 +6,22 @@ class PrintStatement:
         self.value = value
 
 
+class Assignment:
+    def __init__(self, name, value):
+        self.name = name
+        self.value = value
+
+
+class Variable:
+    def __init__(self, name):
+        self.name = name
+
+
+class Literal:
+    def __init__(self, value):
+        self.value = value
+
+
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
@@ -16,7 +32,10 @@ class Parser:
 
     def advance(self):
         token = self.current()
-        self.position += 1
+
+        if token.type != TokenType.EOF:
+            self.position += 1
+
         return token
 
     def expect(self, token_type):
@@ -43,6 +62,9 @@ class Parser:
         if self.current().type == TokenType.PRINT:
             return self.parse_print()
 
+        if self.current().type == TokenType.IDENTIFIER:
+            return self.parse_assignment()
+
         token = self.current()
 
         raise SyntaxError(
@@ -50,12 +72,36 @@ class Parser:
             f"at line {token.line}"
         )
 
+    def parse_assignment(self):
+        name = self.expect(TokenType.IDENTIFIER).value
+        self.expect(TokenType.EQUAL)
+        value = self.parse_expression()
+
+        return Assignment(name, value)
+
     def parse_print(self):
         self.expect(TokenType.PRINT)
         self.expect(TokenType.LPAREN)
-
-        value = self.expect(TokenType.STRING)
-
+        value = self.parse_expression()
         self.expect(TokenType.RPAREN)
 
-        return PrintStatement(value.value)
+        return PrintStatement(value)
+
+    def parse_expression(self):
+        token = self.current()
+
+        if token.type == TokenType.STRING:
+            self.advance()
+            return Literal(token.value)
+
+        if token.type == TokenType.NUMBER:
+            self.advance()
+            return Literal(int(token.value))
+
+        if token.type == TokenType.IDENTIFIER:
+            self.advance()
+            return Variable(token.value)
+
+        raise SyntaxError(
+            f"Expected a value at line {token.line}"
+        )
