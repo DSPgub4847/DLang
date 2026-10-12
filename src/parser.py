@@ -2,14 +2,21 @@ from lexer import TokenType
 
 
 class PrintStatement:
-    def __init__(self, value):
-        self.value = value
+    def __init__(self, expression):
+        self.expression = expression
 
 
 class Assignment:
-    def __init__(self, name, value):
+    def __init__(self, name, expression):
         self.name = name
-        self.value = value
+        self.expression = expression
+
+
+class IfStatement:
+    def __init__(self, condition, then_body, else_body=None):
+        self.condition = condition
+        self.then_body = then_body
+        self.else_body = else_body or []
 
 
 class Variable:
@@ -39,63 +46,129 @@ class Parser:
 
     def advance(self):
         token = self.current()
-
         if token.type != TokenType.EOF:
             self.position += 1
-
         return token
 
-    def expect(self, token_type):
-        token = self.current()
+    def match(self, *types):
+        if self.current().type in types:
+            return self.advance()
+        return None
 
-        if token.type != token_type:
+    def expect(self, token_type, message):
+        if self.current().type != token_type:
+            token = self.current()
             raise SyntaxError(
-                f"Expected {token_type.name}, "
-                f"got {token.type.name} "
-                f"at line {token.line}"
+                f"Line {token.line}: {message}"
             )
-
         return self.advance()
+
+    def skip_newlines(self):
+        while self.match(TokenType.NEWLINE):
+            pass
 
     def parse(self):
         statements = []
+        self.skip_newlines()
 
         while self.current().type != TokenType.EOF:
+            if self.current().type == TokenType.DEDENT:
+                token = self.current()
+                raise SyntaxError(
+                    f"Line {token.line}: Unexpected indentation"
+                )
+
             statements.append(self.parse_statement())
+            self.skip_newlines()
 
         return statements
 
     def parse_statement(self):
+        if self.current().type == TokenType.IF:
+            return self.parse_if()
+
         if self.current().type == TokenType.PRINT:
-            return self.parse_print()
+            self.advance()
+            self.expect(TokenType.LPAREN, "Expected '(' after print")
+
+            expression = self.parse_expression()
+
+            self.expect(TokenType.RPAREN, "Expected ')' after expression")
+            self.expect(TokenType.NEWLINE, "Expected end of line")
+
+            return PrintStatement(expression)
 
         if self.current().type == TokenType.IDENTIFIER:
-            return self.parse_assignment()
+            name = self.advance().value
+
+            self.expect(TokenType.ASSIGN, "Expected '=' after variable name")
+            expression = self.parse_expression()
+
+            self.expect(TokenType.NEWLINE, "Expected end of line")
+
+            return Assignment(name, expression)
 
         token = self.current()
-
         raise SyntaxError(
-            f"Unexpected token '{token.value}' "
-            f"at line {token.line}"
+            f"Line {token.line}: Invalid statement"
         )
 
-    def parse_assignment(self):
-        name = self.expect(TokenType.IDENTIFIER).value
-        self.expect(TokenType.EQUAL)
-        value = self.parse_expression()
+    def parse_if(self):
+        self.expect(TokenType.IF, "Expected 'if'")
 
-        return Assignment(name, value)
+        condition = self.parse_expression()
+        self.expect(TokenType.NEWLINE, "Expected ':' after condition")
 
-    def parse_print(self):
-        self.expect(TokenType.PRINT)
-        self.expect(TokenType.LPAREN)
-        value = self.parse_expression()
-        self.expect(TokenType.RPAREN)
+        then_body = self.parse_block()
+        else_body = []
 
-        return PrintStatement(value)
+        if self.match(TokenType.ELSE):
+            self.expect(TokenType.NEWLINE, "Expected ':' after else")
+            else_body = self.parse_block()
+
+        return IfStatement(condition, then_body, else_body)
+
+    def parse_block(self):
+        self.expect(TokenType.INDENT, "Expected an indented block")
+
+        statements = []
+        self.skip_newlines()
+
+        while self.current().type not in (
+            TokenType.DEDENT,
+            TokenType.EOF
+        ):
+            statements.append(self.parse_statement())
+            self.skip_newlines()
+
+        self.expect(TokenType.DEDENT, "Expected end of block")
+
+        return statements
 
     def parse_expression(self):
-        return self.parse_addition()
+        return self.parse_comparison()
+
+    def parse_comparison(self):
+        expression = self.parse_addition()
+
+        comparison_types = (
+            TokenType.GREATER,
+            TokenType.LESS,
+            TokenType.GREATER_EQUAL,
+            TokenType.LESS_EQUAL,
+            TokenType.EQUAL_EQUAL,
+            TokenType.NOT_EQUAL,
+        )
+
+        while self.current().type in comparison_types:
+            operator = self.advance().value
+            right = self.parse_addition()
+
+            expression = BinaryExpression(
+                expression, operator, right
+            )
+
+        return expression
 
     def parse_addition(self):
         expression = self.parse_multiplication()
@@ -104,7 +177,7 @@ class Parser:
             TokenType.PLUS,
             TokenType.MINUS,
         ):
-            operator = self.advance().type
+            operator = self.advance().value
             right = self.parse_multiplication()
 
             expression = BinaryExpression(
@@ -117,10 +190,10 @@ class Parser:
         expression = self.parse_primary()
 
         while self.current().type in (
-            TokenType.STAR,
-            TokenType.SLASH,
+            TokenType.MULTIPLY,
+            TokenType.DIVIDE,
         ):
-            operator = self.advance().type
+            operator = self.advance().value
             right = self.parse_primary()
 
             expression = BinaryExpression(
@@ -132,24 +205,24 @@ class Parser:
     def parse_primary(self):
         token = self.current()
 
-        if token.type == TokenType.STRING:
-            self.advance()
-            return Literal(token.value)
-
         if token.type == TokenType.NUMBER:
             self.advance()
             return Literal(int(token.value))
+
+        if token.type == TokenType.STRING:
+            self.advance()
+            return Literal(token.value)
 
         if token.type == TokenType.IDENTIFIER:
             self.advance()
             return Variable(token.value)
 
-        if token.type == TokenType.LPAREN:
-            self.advance()
+        if self.match(TokenType.LPAREN):
             expression = self.parse_expression()
-            self.expect(TokenType.RPAREN)
+            self.expect(TokenType.RPAREN, "Expected ')'")
+
             return expression
 
         raise SyntaxError(
-            f"Expected a value at line {token.line}"
+            f"Line {token.line}: Expected a value"
         )

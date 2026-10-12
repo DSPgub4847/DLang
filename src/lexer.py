@@ -1,5 +1,5 @@
-from dataclasses import dataclass
 from enum import Enum, auto
+from dataclasses import dataclass
 
 
 class TokenType(Enum):
@@ -10,13 +10,26 @@ class TokenType(Enum):
 
     LPAREN = auto()
     RPAREN = auto()
-    EQUAL = auto()
+    ASSIGN = auto()
 
     PLUS = auto()
     MINUS = auto()
-    STAR = auto()
-    SLASH = auto()
+    MULTIPLY = auto()
+    DIVIDE = auto()
 
+    GREATER = auto()
+    LESS = auto()
+    GREATER_EQUAL = auto()
+    LESS_EQUAL = auto()
+    EQUAL_EQUAL = auto()
+    NOT_EQUAL = auto()
+
+    IF = auto()
+    ELSE = auto()
+
+    NEWLINE = auto()
+    INDENT = auto()
+    DEDENT = auto()
     EOF = auto()
 
 
@@ -27,176 +40,189 @@ class Token:
     line: int
 
 
-KEYWORDS = {
-    "print": TokenType.PRINT,
-}
-
-
 class Lexer:
     def __init__(self, source):
         self.source = source
-        self.position = 0
-        self.line = 1
-        self.tokens = []
 
     def tokenize(self):
-        while self.position < len(self.source):
-            char = self.source[self.position]
+        tokens = []
+        indent_stack = [0]
+        lines = self.source.splitlines()
 
-            # Ignore spaces and tabs
-            if char in " \t\r":
-                self.position += 1
+        for line_number, line in enumerate(lines, start=1):
+            # खाली लाइन और केवल comment वाली लाइन छोड़ दो।
+            if not line.strip() or line.lstrip().startswith("#"):
                 continue
 
-            # New line
-            if char == "\n":
-                self.line += 1
-                self.position += 1
-                continue
+            indent = len(line) - len(line.lstrip(" "))
 
-            # Parentheses
-            if char == "(":
-                self.add_token(TokenType.LPAREN, char)
-                continue
-
-            if char == ")":
-                self.add_token(TokenType.RPAREN, char)
-                continue
-
-            # Assignment
-            if char == "=":
-                self.add_token(TokenType.EQUAL, char)
-                continue
-
-            # Arithmetic operators
-            if char == "+":
-                self.add_token(TokenType.PLUS, char)
-                continue
-
-            if char == "-":
-                self.add_token(TokenType.MINUS, char)
-                continue
-
-            if char == "*":
-                self.add_token(TokenType.STAR, char)
-                continue
-
-            if char == "/":
-                self.add_token(TokenType.SLASH, char)
-                continue
-
-            # Strings
-            if char in "\"'":
-                self.tokens.append(self.read_string(char))
-                continue
-
-            # Numbers
-            if char.isdigit():
-                self.tokens.append(self.read_number())
-                continue
-
-            # Identifiers and keywords
-            if char.isalpha() or char == "_":
-                self.tokens.append(self.read_identifier())
-                continue
-
-            raise SyntaxError(
-                f"Unexpected character '{char}' "
-                f"at line {self.line}"
-            )
-
-        self.tokens.append(
-            Token(TokenType.EOF, "", self.line)
-        )
-
-        return self.tokens
-
-    def add_token(self, token_type, value):
-        self.tokens.append(
-            Token(token_type, value, self.line)
-        )
-        self.position += 1
-
-    def read_string(self, quote):
-        start_line = self.line
-        self.position += 1
-        value = []
-
-        while self.position < len(self.source):
-            char = self.source[self.position]
-
-            if char == quote:
-                self.position += 1
-                return Token(
-                    TokenType.STRING,
-                    "".join(value),
-                    start_line
-                )
-
-            if char == "\n":
+            if "\t" in line[:len(line) - len(line.lstrip())]:
                 raise SyntaxError(
-                    f"Unterminated string at line {start_line}"
+                    f"Line {line_number}: Use spaces for indentation"
                 )
 
-            if char == "\\":
-                self.position += 1
+            if indent > indent_stack[-1]:
+                indent_stack.append(indent)
+                tokens.append(
+                    Token(TokenType.INDENT, "", line_number)
+                )
 
-                if self.position >= len(self.source):
+            elif indent < indent_stack[-1]:
+                while indent < indent_stack[-1]:
+                    indent_stack.pop()
+                    tokens.append(
+                        Token(TokenType.DEDENT, "", line_number)
+                    )
+
+                if indent != indent_stack[-1]:
+                    raise SyntaxError(
+                        f"Line {line_number}: Invalid indentation"
+                    )
+
+            i = indent
+
+            while i < len(line):
+                char = line[i]
+
+                if char.isspace():
+                    i += 1
+                    continue
+
+                if char == "#":
                     break
 
-                escaped = self.source[self.position]
+                # Strings
+                if char in ('"', "'"):
+                    quote = char
+                    i += 1
+                    value = ""
 
-                escapes = {
-                    "n": "\n",
-                    "t": "\t",
-                    "\\": "\\",
-                    "'": "'",
-                    '"': '"',
+                    while i < len(line) and line[i] != quote:
+                        if line[i] == "\\" and i + 1 < len(line):
+                            i += 1
+                            escaped = line[i]
+
+                            if escaped == "n":
+                                value += "\n"
+                            elif escaped == "t":
+                                value += "\t"
+                            else:
+                                value += escaped
+                        else:
+                            value += line[i]
+
+                        i += 1
+
+                    if i >= len(line):
+                        raise SyntaxError(
+                            f"Line {line_number}: Unterminated string"
+                        )
+
+                    i += 1
+                    tokens.append(
+                        Token(TokenType.STRING, value, line_number)
+                    )
+                    continue
+
+                # Numbers
+                if char.isdigit():
+                    start = i
+
+                    while i < len(line) and line[i].isdigit():
+                        i += 1
+
+                    tokens.append(
+                        Token(
+                            TokenType.NUMBER,
+                            line[start:i],
+                            line_number
+                        )
+                    )
+                    continue
+
+                # Identifiers and keywords
+                if char.isalpha() or char == "_":
+                    start = i
+
+                    while (
+                        i < len(line)
+                        and (line[i].isalnum() or line[i] == "_")
+                    ):
+                        i += 1
+
+                    word = line[start:i]
+
+                    if word == "print":
+                        token_type = TokenType.PRINT
+                    elif word == "if":
+                        token_type = TokenType.IF
+                    elif word == "else":
+                        token_type = TokenType.ELSE
+                    else:
+                        token_type = TokenType.IDENTIFIER
+
+                    tokens.append(
+                        Token(token_type, word, line_number)
+                    )
+                    continue
+
+                # Two-character operators must be checked first.
+                two_char = line[i:i + 2]
+
+                two_char_tokens = {
+                    ">=": TokenType.GREATER_EQUAL,
+                    "<=": TokenType.LESS_EQUAL,
+                    "==": TokenType.EQUAL_EQUAL,
+                    "!=": TokenType.NOT_EQUAL,
                 }
 
-                value.append(escapes.get(escaped, escaped))
-                self.position += 1
-                continue
+                if two_char in two_char_tokens:
+                    tokens.append(
+                        Token(
+                            two_char_tokens[two_char],
+                            two_char,
+                            line_number
+                        )
+                    )
+                    i += 2
+                    continue
 
-            value.append(char)
-            self.position += 1
+                # Single-character tokens
+                single_char_tokens = {
+                    "(": TokenType.LPAREN,
+                    ")": TokenType.RPAREN,
+                    "=": TokenType.ASSIGN,
+                    "+": TokenType.PLUS,
+                    "-": TokenType.MINUS,
+                    "*": TokenType.MULTIPLY,
+                    "/": TokenType.DIVIDE,
+                    ">": TokenType.GREATER,
+                    "<": TokenType.LESS,
+                    ":": None,
+                }
 
-        raise SyntaxError(
-            f"Unterminated string at line {start_line}"
-        )
+                if char in single_char_tokens:
+                    token_type = single_char_tokens[char]
 
-    def read_number(self):
-        start = self.position
+                    if token_type is not None:
+                        tokens.append(
+                            Token(token_type, char, line_number)
+                        )
 
-        while (
-            self.position < len(self.source)
-            and self.source[self.position].isdigit()
-        ):
-            self.position += 1
+                    i += 1
+                    continue
 
-        value = self.source[start:self.position]
+                raise SyntaxError(
+                    f"Line {line_number}: Unexpected character '{char}'"
+                )
 
-        return Token(
-            TokenType.NUMBER,
-            value,
-            self.line
-        )
+            tokens.append(
+                Token(TokenType.NEWLINE, "\\n", line_number)
+            )
 
-    def read_identifier(self):
-        start = self.position
+        while len(indent_stack) > 1:
+            indent_stack.pop()
+            tokens.append(Token(TokenType.DEDENT, "", len(lines) or 1))
 
-        while self.position < len(self.source):
-            char = self.source[self.position]
-
-            if char.isalnum() or char == "_":
-                self.position += 1
-            else:
-                break
-
-        value = self.source[start:self.position]
-
-        return Token(
-            KEYWORDS.get(value, TokenType.IDENTIFIER),
-            value,
-            self.line
-        )
+        tokens.append(Token(TokenType.EOF, "", len(lines) or 1))
+        return tokens

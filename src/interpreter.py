@@ -1,6 +1,7 @@
 from parser import (
     PrintStatement,
     Assignment,
+    IfStatement,
     Variable,
     Literal,
     BinaryExpression,
@@ -14,18 +15,30 @@ class Interpreter:
         self.variables = {}
 
     def run(self):
-        for statement in self.statements:
+        self.execute_block(self.statements)
+
+    def execute_block(self, statements):
+        for statement in statements:
             self.execute(statement)
 
     def execute(self, statement):
         if isinstance(statement, Assignment):
             self.variables[statement.name] = (
-                self.evaluate(statement.value)
+                self.evaluate(statement.expression)
             )
             return
 
         if isinstance(statement, PrintStatement):
-            print(self.evaluate(statement.value))
+            print(self.evaluate(statement.expression))
+            return
+
+        if isinstance(statement, IfStatement):
+            condition = self.evaluate(statement.condition)
+
+            if condition:
+                self.execute_block(statement.then_body)
+            else:
+                self.execute_block(statement.else_body)
             return
 
         raise RuntimeError(
@@ -47,21 +60,45 @@ class Interpreter:
         if isinstance(expression, BinaryExpression):
             left = self.evaluate(expression.left)
             right = self.evaluate(expression.right)
+            operator = expression.operator
 
-            if expression.operator == TokenType.PLUS:
-                return left + right
+            try:
+                if operator == "+":
+                    return left + right
 
-            if expression.operator == TokenType.MINUS:
-                return left - right
+                if operator == "-":
+                    return left - right
 
-            if expression.operator == TokenType.STAR:
-                return left * right
+                if operator == "*":
+                    return left * right
 
-            if expression.operator == TokenType.SLASH:
-                if right == 0:
-                    raise RuntimeError("Division by zero")
+                if operator == "/":
+                    if right == 0:
+                        raise RuntimeError("Division by zero")
+                    return left / right
 
-                return left / right
+                if operator == ">":
+                    return left > right
+
+                if operator == "<":
+                    return left < right
+
+                if operator == ">=":
+                    return left >= right
+
+                if operator == "<=":
+                    return left <= right
+
+                if operator == "==":
+                    return left == right
+
+                if operator == "!=":
+                    return left != right
+
+            except TypeError:
+                raise RuntimeError(
+                    "Incompatible value types in expression"
+                ) from None
 
         raise RuntimeError(
             f"Unknown expression: {type(expression).__name__}"

@@ -1,11 +1,9 @@
-a = 10
-b = 20
+age = 16
 
-sum = a + b
-print(sum)
+if age >= 18:
+    print("Adult")
+else:
+    print("Minor")
 
 print(10 + 20 * 2)
-print((10 + 20) * 2)
-print(100 - 25)
-print(6 * 7)
-print(20 / 4)
+print(age == 16)
