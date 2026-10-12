@@ -22,6 +22,13 @@ class Literal:
         self.value = value
 
 
+class BinaryExpression:
+    def __init__(self, left, operator, right):
+        self.left = left
+        self.operator = operator
+        self.right = right
+
+
 class Parser:
     def __init__(self, tokens):
         self.tokens = tokens
@@ -88,6 +95,41 @@ class Parser:
         return PrintStatement(value)
 
     def parse_expression(self):
+        return self.parse_addition()
+
+    def parse_addition(self):
+        expression = self.parse_multiplication()
+
+        while self.current().type in (
+            TokenType.PLUS,
+            TokenType.MINUS,
+        ):
+            operator = self.advance().type
+            right = self.parse_multiplication()
+
+            expression = BinaryExpression(
+                expression, operator, right
+            )
+
+        return expression
+
+    def parse_multiplication(self):
+        expression = self.parse_primary()
+
+        while self.current().type in (
+            TokenType.STAR,
+            TokenType.SLASH,
+        ):
+            operator = self.advance().type
+            right = self.parse_primary()
+
+            expression = BinaryExpression(
+                expression, operator, right
+            )
+
+        return expression
+
+    def parse_primary(self):
         token = self.current()
 
         if token.type == TokenType.STRING:
@@ -101,6 +143,12 @@ class Parser:
         if token.type == TokenType.IDENTIFIER:
             self.advance()
             return Variable(token.value)
+
+        if token.type == TokenType.LPAREN:
+            self.advance()
+            expression = self.parse_expression()
+            self.expect(TokenType.RPAREN)
+            return expression
 
         raise SyntaxError(
             f"Expected a value at line {token.line}"

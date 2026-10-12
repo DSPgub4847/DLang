@@ -1,6 +1,11 @@
-name = "Dhrubajit"
-age = 16
+a = 10
+b = 20
 
-print("Hello DLang!")
-print(name)
-print(age)
+sum = a + b
+print(sum)
+
+print(10 + 20 * 2)
+print((10 + 20) * 2)
+print(100 - 25)
+print(6 * 7)
+print(20 / 4)

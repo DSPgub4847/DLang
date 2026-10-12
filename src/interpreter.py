@@ -1,4 +1,11 @@
-from parser import PrintStatement, Assignment, Variable, Literal
+from parser import (
+    PrintStatement,
+    Assignment,
+    Variable,
+    Literal,
+    BinaryExpression,
+)
+from lexer import TokenType
 
 
 class Interpreter:
@@ -18,8 +25,7 @@ class Interpreter:
             return
 
         if isinstance(statement, PrintStatement):
-            value = self.evaluate(statement.value)
-            print(value)
+            print(self.evaluate(statement.value))
             return
 
         raise RuntimeError(
@@ -37,6 +43,25 @@ class Interpreter:
                 )
 
             return self.variables[expression.name]
+
+        if isinstance(expression, BinaryExpression):
+            left = self.evaluate(expression.left)
+            right = self.evaluate(expression.right)
+
+            if expression.operator == TokenType.PLUS:
+                return left + right
+
+            if expression.operator == TokenType.MINUS:
+                return left - right
+
+            if expression.operator == TokenType.STAR:
+                return left * right
+
+            if expression.operator == TokenType.SLASH:
+                if right == 0:
+                    raise RuntimeError("Division by zero")
+
+                return left / right
 
         raise RuntimeError(
             f"Unknown expression: {type(expression).__name__}"

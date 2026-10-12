@@ -12,6 +12,11 @@ class TokenType(Enum):
     RPAREN = auto()
     EQUAL = auto()
 
+    PLUS = auto()
+    MINUS = auto()
+    STAR = auto()
+    SLASH = auto()
+
     EOF = auto()
 
 
@@ -43,7 +48,7 @@ class Lexer:
                 self.position += 1
                 continue
 
-            # Track line numbers
+            # New line
             if char == "\n":
                 self.line += 1
                 self.position += 1
@@ -51,25 +56,33 @@ class Lexer:
 
             # Parentheses
             if char == "(":
-                self.tokens.append(
-                    Token(TokenType.LPAREN, char, self.line)
-                )
-                self.position += 1
+                self.add_token(TokenType.LPAREN, char)
                 continue
 
             if char == ")":
-                self.tokens.append(
-                    Token(TokenType.RPAREN, char, self.line)
-                )
-                self.position += 1
+                self.add_token(TokenType.RPAREN, char)
                 continue
 
-            # Assignment operator
+            # Assignment
             if char == "=":
-                self.tokens.append(
-                    Token(TokenType.EQUAL, char, self.line)
-                )
-                self.position += 1
+                self.add_token(TokenType.EQUAL, char)
+                continue
+
+            # Arithmetic operators
+            if char == "+":
+                self.add_token(TokenType.PLUS, char)
+                continue
+
+            if char == "-":
+                self.add_token(TokenType.MINUS, char)
+                continue
+
+            if char == "*":
+                self.add_token(TokenType.STAR, char)
+                continue
+
+            if char == "/":
+                self.add_token(TokenType.SLASH, char)
                 continue
 
             # Strings
@@ -98,6 +111,12 @@ class Lexer:
 
         return self.tokens
 
+    def add_token(self, token_type, value):
+        self.tokens.append(
+            Token(token_type, value, self.line)
+        )
+        self.position += 1
+
     def read_string(self, quote):
         start_line = self.line
         self.position += 1
@@ -119,7 +138,6 @@ class Lexer:
                     f"Unterminated string at line {start_line}"
                 )
 
-            # Basic escape sequences
             if char == "\\":
                 self.position += 1
 
@@ -150,12 +168,10 @@ class Lexer:
     def read_number(self):
         start = self.position
 
-        while self.position < len(self.source):
-            char = self.source[self.position]
-
-            if not char.isdigit():
-                break
-
+        while (
+            self.position < len(self.source)
+            and self.source[self.position].isdigit()
+        ):
             self.position += 1
 
         value = self.source[start:self.position]
@@ -179,13 +195,8 @@ class Lexer:
 
         value = self.source[start:self.position]
 
-        token_type = KEYWORDS.get(
-            value,
-            TokenType.IDENTIFIER
-        )
-
         return Token(
-            token_type,
+            KEYWORDS.get(value, TokenType.IDENTIFIER),
             value,
             self.line
         )
