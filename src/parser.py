@@ -26,6 +26,12 @@ class IfStatement:
         self.elif_branches = elif_branches or []
 
 
+class WhileStatement:
+    def __init__(self, condition, body):
+        self.condition = condition
+        self.body = body
+
+
 class Variable:
     def __init__(self, name):
         self.name = name
@@ -53,13 +59,16 @@ class Parser:
 
     def advance(self):
         token = self.current()
+
         if token.type != TokenType.EOF:
             self.position += 1
+
         return token
 
     def match(self, *types):
         if self.current().type in types:
             return self.advance()
+
         return None
 
     def expect(self, token_type, message):
@@ -68,6 +77,7 @@ class Parser:
             raise SyntaxError(
                 f"Line {token.line}: {message}"
             )
+
         return self.advance()
 
     def skip_newlines(self):
@@ -94,8 +104,12 @@ class Parser:
         if self.current().type == TokenType.IF:
             return self.parse_if()
 
+        if self.current().type == TokenType.WHILE:
+            return self.parse_while()
+
         if self.current().type == TokenType.PRINT:
             self.advance()
+
             self.expect(
                 TokenType.LPAREN,
                 "Expected '(' after print"
@@ -107,6 +121,7 @@ class Parser:
                 TokenType.RPAREN,
                 "Expected ')' after expression"
             )
+
             self.expect(
                 TokenType.NEWLINE,
                 "Expected end of line"
@@ -121,6 +136,7 @@ class Parser:
                 TokenType.ASSIGN,
                 "Expected '=' after variable name"
             )
+
             expression = self.parse_expression()
 
             self.expect(
@@ -131,6 +147,7 @@ class Parser:
             return Assignment(name, expression)
 
         token = self.current()
+
         raise SyntaxError(
             f"Line {token.line}: Invalid statement"
         )
@@ -139,6 +156,7 @@ class Parser:
         self.expect(TokenType.IF, "Expected 'if'")
 
         condition = self.parse_expression()
+
         self.expect(
             TokenType.NEWLINE,
             "Expected ':' after condition"
@@ -156,6 +174,7 @@ class Parser:
             )
 
             elif_body = self.parse_block()
+
             elif_branches.append(
                 (elif_condition, elif_body)
             )
@@ -167,6 +186,7 @@ class Parser:
                 TokenType.NEWLINE,
                 "Expected ':' after else"
             )
+
             else_body = self.parse_block()
 
         return IfStatement(
@@ -175,6 +195,23 @@ class Parser:
             else_body,
             elif_branches
         )
+
+    def parse_while(self):
+        self.expect(
+            TokenType.WHILE,
+            "Expected 'while'"
+        )
+
+        condition = self.parse_expression()
+
+        self.expect(
+            TokenType.NEWLINE,
+            "Expected ':' after while condition"
+        )
+
+        body = self.parse_block()
+
+        return WhileStatement(condition, body)
 
     def parse_block(self):
         self.expect(
@@ -279,10 +316,12 @@ class Parser:
 
         if self.match(TokenType.LPAREN):
             expression = self.parse_expression()
+
             self.expect(
                 TokenType.RPAREN,
                 "Expected ')'"
             )
+
             return expression
 
         raise SyntaxError(

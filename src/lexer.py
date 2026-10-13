@@ -27,6 +27,7 @@ class TokenType(Enum):
     IF = auto()
     ELIF = auto()
     ELSE = auto()
+    WHILE = auto()
 
     NEWLINE = auto()
     INDENT = auto()
@@ -161,6 +162,8 @@ class Lexer:
                         token_type = TokenType.ELIF
                     elif word == "else":
                         token_type = TokenType.ELSE
+                    elif word == "while":
+                        token_type = TokenType.WHILE
                     else:
                         token_type = TokenType.IDENTIFIER
 

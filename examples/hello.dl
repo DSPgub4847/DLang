@@ -1,13 +1,48 @@
+print("=== DLang Full Test ===")
+
+print("--- Variables ---")
+name = "DLang"
+age = 16
 marks = 75
 
+print(name)
+print(age)
+print(marks)
+
+print("--- Math ---")
+a = 10
+b = 3
+
+print(a + b)
+print(a - b)
+print(a * b)
+print(a / b)
+
+print("--- Comparisons ---")
+print(age > 10)
+print(age == 16)
+print(marks < 50)
+
+print("--- If / Else ---")
+if age >= 18:
+    print("Adult")
+else:
+    print("Minor")
+
+print("--- Elif ---")
 if marks >= 90:
     print("Grade A+")
-
 elif marks >= 75:
     print("Grade A")
-
 elif marks >= 50:
     print("Grade B")
-
 else:
     print("Grade C")
+
+print("--- While Loop ---")
+count = 1
+while count <= 5:
+    print(count)
+    count = count + 1
+
+print("--- Test Complete ---")

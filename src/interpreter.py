@@ -2,11 +2,11 @@ from parser import (
     PrintStatement,
     Assignment,
     IfStatement,
+    WhileStatement,
     Variable,
     Literal,
     BinaryExpression,
 )
-from lexer import TokenType
 
 
 class Interpreter:
@@ -33,17 +33,23 @@ class Interpreter:
             return
 
         if isinstance(statement, IfStatement):
-           if self.evaluate(statement.condition):
-              self.execute_block(statement.then_body)
-              return
-
-           for condition, body in statement.elif_branches:
-             if self.evaluate(condition):
-                self.execute_block(body)
+            if self.evaluate(statement.condition):
+                self.execute_block(statement.then_body)
                 return
 
-           self.execute_block(statement.else_body)
-           return
+            for condition, body in statement.elif_branches:
+                if self.evaluate(condition):
+                    self.execute_block(body)
+                    return
+
+            self.execute_block(statement.else_body)
+            return
+
+        if isinstance(statement, WhileStatement):
+            while self.evaluate(statement.condition):
+                self.execute_block(statement.body)
+            return
+
         raise RuntimeError(
             f"Unknown statement: {type(statement).__name__}"
         )
@@ -78,6 +84,7 @@ class Interpreter:
                 if operator == "/":
                     if right == 0:
                         raise RuntimeError("Division by zero")
+
                     return left / right
 
                 if operator == ">":
