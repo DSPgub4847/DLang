@@ -4,12 +4,16 @@ from dataclasses import dataclass
 
 class TokenType(Enum):
     PRINT = auto()
+    FUNC = auto()
+    RETURN = auto()
+
     IDENTIFIER = auto()
     STRING = auto()
     NUMBER = auto()
 
     LPAREN = auto()
     RPAREN = auto()
+    COMMA = auto()
     ASSIGN = auto()
 
     PLUS = auto()
@@ -52,13 +56,12 @@ class Lexer:
         lines = self.source.splitlines()
 
         for line_number, line in enumerate(lines, start=1):
-            # खाली लाइन और केवल comment वाली लाइन छोड़ दो।
             if not line.strip() or line.lstrip().startswith("#"):
                 continue
 
             indent = len(line) - len(line.lstrip(" "))
 
-            if "\t" in line[:len(line) - len(line.lstrip())]:
+            if "\\t" in line[:len(line) - len(line.lstrip())]:
                 raise SyntaxError(
                     f"Line {line_number}: Use spaces for indentation"
                 )
@@ -154,25 +157,26 @@ class Lexer:
 
                     word = line[start:i]
 
-                    if word == "print":
-                        token_type = TokenType.PRINT
-                    elif word == "if":
-                        token_type = TokenType.IF
-                    elif word == "elif":
-                        token_type = TokenType.ELIF
-                    elif word == "else":
-                        token_type = TokenType.ELSE
-                    elif word == "while":
-                        token_type = TokenType.WHILE
-                    else:
-                        token_type = TokenType.IDENTIFIER
+                    keywords = {
+                        "print": TokenType.PRINT,
+                        "func": TokenType.FUNC,
+                        "return": TokenType.RETURN,
+                        "if": TokenType.IF,
+                        "elif": TokenType.ELIF,
+                        "else": TokenType.ELSE,
+                        "while": TokenType.WHILE,
+                    }
+
+                    token_type = keywords.get(
+                        word, TokenType.IDENTIFIER
+                    )
 
                     tokens.append(
                         Token(token_type, word, line_number)
                     )
                     continue
 
-                # Two-character operators must be checked first.
+                # Two-character operators
                 two_char = line[i:i + 2]
 
                 two_char_tokens = {
@@ -197,6 +201,7 @@ class Lexer:
                 single_char_tokens = {
                     "(": TokenType.LPAREN,
                     ")": TokenType.RPAREN,
+                    ",": TokenType.COMMA,
                     "=": TokenType.ASSIGN,
                     "+": TokenType.PLUS,
                     "-": TokenType.MINUS,
@@ -204,17 +209,20 @@ class Lexer:
                     "/": TokenType.DIVIDE,
                     ">": TokenType.GREATER,
                     "<": TokenType.LESS,
-                    ":": None,
                 }
 
                 if char in single_char_tokens:
-                    token_type = single_char_tokens[char]
-
-                    if token_type is not None:
-                        tokens.append(
-                            Token(token_type, char, line_number)
+                    tokens.append(
+                        Token(
+                            single_char_tokens[char],
+                            char,
+                            line_number
                         )
+                    )
+                    i += 1
+                    continue
 
+                if char == ":":
                     i += 1
                     continue
 
@@ -228,7 +236,12 @@ class Lexer:
 
         while len(indent_stack) > 1:
             indent_stack.pop()
-            tokens.append(Token(TokenType.DEDENT, "", len(lines) or 1))
+            tokens.append(
+                Token(TokenType.DEDENT, "", len(lines) or 1)
+            )
 
-        tokens.append(Token(TokenType.EOF, "", len(lines) or 1))
+        tokens.append(
+            Token(TokenType.EOF, "", len(lines) or 1)
+        )
+
         return tokens
