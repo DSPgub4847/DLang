@@ -33,14 +33,17 @@ class Interpreter:
             return
 
         if isinstance(statement, IfStatement):
-            condition = self.evaluate(statement.condition)
+           if self.evaluate(statement.condition):
+              self.execute_block(statement.then_body)
+              return
 
-            if condition:
-                self.execute_block(statement.then_body)
-            else:
-                self.execute_block(statement.else_body)
-            return
+           for condition, body in statement.elif_branches:
+             if self.evaluate(condition):
+                self.execute_block(body)
+                return
 
+           self.execute_block(statement.else_body)
+           return
         raise RuntimeError(
             f"Unknown statement: {type(statement).__name__}"
         )

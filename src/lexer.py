@@ -25,6 +25,7 @@ class TokenType(Enum):
     NOT_EQUAL = auto()
 
     IF = auto()
+    ELIF = auto()
     ELSE = auto()
 
     NEWLINE = auto()
@@ -156,6 +157,8 @@ class Lexer:
                         token_type = TokenType.PRINT
                     elif word == "if":
                         token_type = TokenType.IF
+                    elif word == "elif":
+                        token_type = TokenType.ELIF
                     elif word == "else":
                         token_type = TokenType.ELSE
                     else:

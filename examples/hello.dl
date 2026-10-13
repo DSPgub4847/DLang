@@ -1,9 +1,13 @@
-age = 16
+marks = 75
 
-if age >= 18:
-    print("Adult")
+if marks >= 90:
+    print("Grade A+")
+
+elif marks >= 75:
+    print("Grade A")
+
+elif marks >= 50:
+    print("Grade B")
+
 else:
-    print("Minor")
-
-print(10 + 20 * 2)
-print(age == 16)
+    print("Grade C")

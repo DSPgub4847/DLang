@@ -13,10 +13,17 @@ class Assignment:
 
 
 class IfStatement:
-    def __init__(self, condition, then_body, else_body=None):
+    def __init__(
+        self,
+        condition,
+        then_body,
+        else_body=None,
+        elif_branches=None
+    ):
         self.condition = condition
         self.then_body = then_body
         self.else_body = else_body or []
+        self.elif_branches = elif_branches or []
 
 
 class Variable:
@@ -89,22 +96,37 @@ class Parser:
 
         if self.current().type == TokenType.PRINT:
             self.advance()
-            self.expect(TokenType.LPAREN, "Expected '(' after print")
+            self.expect(
+                TokenType.LPAREN,
+                "Expected '(' after print"
+            )
 
             expression = self.parse_expression()
 
-            self.expect(TokenType.RPAREN, "Expected ')' after expression")
-            self.expect(TokenType.NEWLINE, "Expected end of line")
+            self.expect(
+                TokenType.RPAREN,
+                "Expected ')' after expression"
+            )
+            self.expect(
+                TokenType.NEWLINE,
+                "Expected end of line"
+            )
 
             return PrintStatement(expression)
 
         if self.current().type == TokenType.IDENTIFIER:
             name = self.advance().value
 
-            self.expect(TokenType.ASSIGN, "Expected '=' after variable name")
+            self.expect(
+                TokenType.ASSIGN,
+                "Expected '=' after variable name"
+            )
             expression = self.parse_expression()
 
-            self.expect(TokenType.NEWLINE, "Expected end of line")
+            self.expect(
+                TokenType.NEWLINE,
+                "Expected end of line"
+            )
 
             return Assignment(name, expression)
 
@@ -117,19 +139,48 @@ class Parser:
         self.expect(TokenType.IF, "Expected 'if'")
 
         condition = self.parse_expression()
-        self.expect(TokenType.NEWLINE, "Expected ':' after condition")
+        self.expect(
+            TokenType.NEWLINE,
+            "Expected ':' after condition"
+        )
 
         then_body = self.parse_block()
+        elif_branches = []
+
+        while self.match(TokenType.ELIF):
+            elif_condition = self.parse_expression()
+
+            self.expect(
+                TokenType.NEWLINE,
+                "Expected ':' after elif condition"
+            )
+
+            elif_body = self.parse_block()
+            elif_branches.append(
+                (elif_condition, elif_body)
+            )
+
         else_body = []
 
         if self.match(TokenType.ELSE):
-            self.expect(TokenType.NEWLINE, "Expected ':' after else")
+            self.expect(
+                TokenType.NEWLINE,
+                "Expected ':' after else"
+            )
             else_body = self.parse_block()
 
-        return IfStatement(condition, then_body, else_body)
+        return IfStatement(
+            condition,
+            then_body,
+            else_body,
+            elif_branches
+        )
 
     def parse_block(self):
-        self.expect(TokenType.INDENT, "Expected an indented block")
+        self.expect(
+            TokenType.INDENT,
+            "Expected an indented block"
+        )
 
         statements = []
         self.skip_newlines()
@@ -141,7 +192,10 @@ class Parser:
             statements.append(self.parse_statement())
             self.skip_newlines()
 
-        self.expect(TokenType.DEDENT, "Expected end of block")
+        self.expect(
+            TokenType.DEDENT,
+            "Expected end of block"
+        )
 
         return statements
 
@@ -165,7 +219,9 @@ class Parser:
             right = self.parse_addition()
 
             expression = BinaryExpression(
-                expression, operator, right
+                expression,
+                operator,
+                right
             )
 
         return expression
@@ -181,7 +237,9 @@ class Parser:
             right = self.parse_multiplication()
 
             expression = BinaryExpression(
-                expression, operator, right
+                expression,
+                operator,
+                right
             )
 
         return expression
@@ -197,7 +255,9 @@ class Parser:
             right = self.parse_primary()
 
             expression = BinaryExpression(
-                expression, operator, right
+                expression,
+                operator,
+                right
             )
 
         return expression
@@ -219,8 +279,10 @@ class Parser:
 
         if self.match(TokenType.LPAREN):
             expression = self.parse_expression()
-            self.expect(TokenType.RPAREN, "Expected ')'")
-
+            self.expect(
+                TokenType.RPAREN,
+                "Expected ')'"
+            )
             return expression
 
         raise SyntaxError(
