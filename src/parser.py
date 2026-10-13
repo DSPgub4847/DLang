@@ -1,71 +1,76 @@
+from dataclasses import dataclass
 from lexer import TokenType
 
 
+@dataclass
 class PrintStatement:
-    def __init__(self, expression):
-        self.expression = expression
+    expression: object
 
 
+@dataclass
 class Assignment:
-    def __init__(self, name, expression):
-        self.name = name
-        self.expression = expression
+    name: str
+    expression: object
 
 
+@dataclass
 class IfStatement:
-    def __init__(
-        self, condition, then_body, else_body=None,
-        elif_branches=None
-    ):
-        self.condition = condition
-        self.then_body = then_body
-        self.else_body = else_body or []
-        self.elif_branches = elif_branches or []
+    condition: object
+    then_body: list
+    elif_branches: list
+    else_body: list
 
 
+@dataclass
 class WhileStatement:
-    def __init__(self, condition, body):
-        self.condition = condition
-        self.body = body
+    condition: object
+    body: list
 
 
+@dataclass
 class FunctionDefinition:
-    def __init__(self, name, parameters, body):
-        self.name = name
-        self.parameters = parameters
-        self.body = body
+    name: str
+    parameters: list
+    body: list
 
 
+@dataclass
 class ReturnStatement:
-    def __init__(self, expression):
-        self.expression = expression
+    expression: object
 
 
+@dataclass
 class FunctionCall:
-    def __init__(self, name, arguments):
-        self.name = name
-        self.arguments = arguments
+    name: str
+    arguments: list
 
 
+@dataclass
 class InputExpression:
     pass
 
 
+@dataclass
+class TypeConversion:
+    conversion_type: str
+    expression: object
+
+
+@dataclass
 class Variable:
-    def __init__(self, name):
-        self.name = name
+    name: str
 
 
+@dataclass
 class Literal:
-    def __init__(self, value):
-        self.value = value
+    value: object
 
 
+@dataclass
 class BinaryExpression:
-    def __init__(self, left, operator, right):
-        self.left = left
-        self.operator = operator
-        self.right = right
+    left: object
+    operator: str
+    right: object
 
 
 class Parser:
@@ -74,183 +79,236 @@ class Parser:
         self.position = 0
 
     def current(self):
+        if self.position >= len(self.tokens):
+            return None
         return self.tokens[self.position]
 
     def advance(self):
         token = self.current()
-        if token.type != TokenType.EOF:
+        if token is not None:
             self.position += 1
         return token
 
-    def match(self, *types):
-        if self.current().type in types:
-            return self.advance()
-        return None
+    def skip_newlines(self):
+        while (
+            self.current() is not None
+            and self.current().type == TokenType.NEWLINE
+        ):
+            self.advance()
 
     def expect(self, token_type, message):
-        if self.current().type != token_type:
-            token = self.current()
-            raise SyntaxError(f"Line {token.line}: {message}")
+        token = self.current()
+        if token is None or token.type != token_type:
+            raise SyntaxError(message)
         return self.advance()
-
-    def skip_newlines(self):
-        while self.match(TokenType.NEWLINE):
-            pass
 
     def parse(self):
         statements = []
         self.skip_newlines()
 
-        while self.current().type != TokenType.EOF:
-            if self.current().type == TokenType.DEDENT:
-                token = self.current()
-                raise SyntaxError(
-                    f"Line {token.line}: Unexpected indentation"
-                )
+        while (
+            self.current() is not None
+            and self.current().type != TokenType.EOF
+        ):
+            if self.current().type in (
+                TokenType.INDENT,
+                TokenType.DEDENT,
+            ):
+                self.advance()
+                self.skip_newlines()
+                continue
+
             statements.append(self.parse_statement())
             self.skip_newlines()
 
         return statements
 
     def parse_statement(self):
-        token_type = self.current().type
+        token = self.current()
 
-        if token_type == TokenType.FUNC:
-            return self.parse_function()
+        if token is None:
+            raise SyntaxError("Unexpected end of input")
 
-        if token_type == TokenType.RETURN:
-            self.advance()
-            expression = self.parse_expression()
-            self.expect(TokenType.NEWLINE, "Expected end of line")
-            return ReturnStatement(expression)
-
-        if token_type == TokenType.IF:
-            return self.parse_if()
-
-        if token_type == TokenType.WHILE:
-            return self.parse_while()
-
-        if token_type == TokenType.PRINT:
+        if token.type == TokenType.PRINT:
             self.advance()
             self.expect(TokenType.LPAREN, "Expected '(' after print")
             expression = self.parse_expression()
-            self.expect(TokenType.RPAREN, "Expected ')' after expression")
-            self.expect(TokenType.NEWLINE, "Expected end of line")
+            self.expect(TokenType.RPAREN, "Expected ')' after print")
             return PrintStatement(expression)
 
-        if token_type == TokenType.IDENTIFIER:
+        if token.type == TokenType.FUNC:
+            return self.parse_function_definition()
+
+        if token.type == TokenType.RETURN:
+            self.advance()
+            return ReturnStatement(self.parse_expression())
+
+        if token.type == TokenType.IF:
+            return self.parse_if()
+
+        if token.type == TokenType.WHILE:
+            return self.parse_while()
+
+        if token.type == TokenType.IDENTIFIER:
             name = self.advance().value
 
-            if self.match(TokenType.LPAREN):
-                arguments = self.parse_arguments()
-                self.expect(TokenType.RPAREN, "Expected ')' after arguments")
-                self.expect(TokenType.NEWLINE, "Expected end of line")
-                return FunctionCall(name, arguments)
+            if (
+                self.current() is not None
+                and self.current().type == TokenType.LPAREN
+            ):
+                return FunctionCall(name, self.parse_arguments())
 
-            self.expect(TokenType.ASSIGN, "Expected '=' after variable name")
-            expression = self.parse_expression()
-            self.expect(TokenType.NEWLINE, "Expected end of line")
-            return Assignment(name, expression)
+            self.expect(
+                TokenType.ASSIGN,
+                "Expected '=' after variable name",
+            )
+            return Assignment(name, self.parse_expression())
 
-        token = self.current()
-        raise SyntaxError(f"Line {token.line}: Invalid statement")
+        raise SyntaxError(f"Unexpected token: {token.value!r}")
 
-    def parse_function(self):
+    def parse_function_definition(self):
         self.expect(TokenType.FUNC, "Expected 'func'")
+
         name = self.expect(
-            TokenType.IDENTIFIER, "Expected function name"
+            TokenType.IDENTIFIER,
+            "Expected function name",
         ).value
 
         self.expect(TokenType.LPAREN, "Expected '(' after function name")
         parameters = []
 
-        if self.current().type != TokenType.RPAREN:
-            while True:
-                parameter = self.expect(
-                    TokenType.IDENTIFIER, "Expected parameter name"
+        if (
+            self.current() is not None
+            and self.current().type != TokenType.RPAREN
+        ):
+            parameters.append(
+                self.expect(
+                    TokenType.IDENTIFIER,
+                    "Expected parameter name",
                 ).value
+            )
 
-                if parameter in parameters:
-                    raise SyntaxError(f"Duplicate parameter: {parameter}")
-
-                parameters.append(parameter)
-
-                if not self.match(TokenType.COMMA):
-                    break
+            while (
+                self.current() is not None
+                and self.current().type == TokenType.COMMA
+            ):
+                self.advance()
+                parameters.append(
+                    self.expect(
+                        TokenType.IDENTIFIER,
+                        "Expected parameter name",
+                    ).value
+                )
 
         self.expect(TokenType.RPAREN, "Expected ')' after parameters")
-        self.expect(TokenType.NEWLINE, "Expected ':' after function header")
+        self.expect(TokenType.COLON, "Expected ':' after function definition")
 
-        return FunctionDefinition(name, parameters, self.parse_block())
-
-    def parse_arguments(self):
-        arguments = []
-
-        if self.current().type == TokenType.RPAREN:
-            return arguments
-
-        while True:
-            arguments.append(self.parse_expression())
-            if not self.match(TokenType.COMMA):
-                break
-
-        return arguments
+        body = self.parse_block()
+        return FunctionDefinition(name, parameters, body)
 
     def parse_if(self):
         self.expect(TokenType.IF, "Expected 'if'")
         condition = self.parse_expression()
-        self.expect(TokenType.NEWLINE, "Expected ':' after condition")
+        self.expect(TokenType.COLON, "Expected ':' after if condition")
+
         then_body = self.parse_block()
         elif_branches = []
 
-        while self.match(TokenType.ELIF):
-            elif_condition = self.parse_expression()
-            self.expect(TokenType.NEWLINE, "Expected ':' after elif condition")
-            elif_body = self.parse_block()
-            elif_branches.append((elif_condition, elif_body))
+        while (
+            self.current() is not None
+            and self.current().type == TokenType.ELIF
+        ):
+            self.advance()
+            condition = self.parse_expression()
+            self.expect(TokenType.COLON, "Expected ':' after elif condition")
+            elif_branches.append((condition, self.parse_block()))
 
         else_body = []
 
-        if self.match(TokenType.ELSE):
-            self.expect(TokenType.NEWLINE, "Expected ':' after else")
+        if (
+            self.current() is not None
+            and self.current().type == TokenType.ELSE
+        ):
+            self.advance()
+            self.expect(TokenType.COLON, "Expected ':' after else")
             else_body = self.parse_block()
 
         return IfStatement(
-            condition, then_body, else_body, elif_branches
+            condition,
+            then_body,
+            elif_branches,
+            else_body,
         )
 
     def parse_while(self):
         self.expect(TokenType.WHILE, "Expected 'while'")
         condition = self.parse_expression()
-        self.expect(TokenType.NEWLINE, "Expected ':' after while condition")
+        self.expect(TokenType.COLON, "Expected ':' after while condition")
+
         return WhileStatement(condition, self.parse_block())
 
     def parse_block(self):
+        self.skip_newlines()
         self.expect(TokenType.INDENT, "Expected an indented block")
-        statements = []
+        body = []
         self.skip_newlines()
 
-        while self.current().type not in (
-            TokenType.DEDENT, TokenType.EOF
+        while (
+            self.current() is not None
+            and self.current().type not in (
+                TokenType.DEDENT,
+                TokenType.EOF,
+            )
         ):
-            statements.append(self.parse_statement())
+            body.append(self.parse_statement())
             self.skip_newlines()
 
-        self.expect(TokenType.DEDENT, "Expected end of block")
-        return statements
+        self.expect(TokenType.DEDENT, "Expected end of indented block")
+
+        if not body:
+            raise SyntaxError("Expected a non-empty block")
+
+        return body
+
+    def parse_arguments(self):
+        self.expect(TokenType.LPAREN, "Expected '('")
+        arguments = []
+
+        if (
+            self.current() is not None
+            and self.current().type != TokenType.RPAREN
+        ):
+            arguments.append(self.parse_expression())
+
+            while (
+                self.current() is not None
+                and self.current().type == TokenType.COMMA
+            ):
+                self.advance()
+                arguments.append(self.parse_expression())
+
+        self.expect(TokenType.RPAREN, "Expected ')' after arguments")
+        return arguments
 
     def parse_expression(self):
         return self.parse_comparison()
 
     def parse_comparison(self):
         expression = self.parse_addition()
-        comparison_types = (
-            TokenType.GREATER, TokenType.LESS,
-            TokenType.GREATER_EQUAL, TokenType.LESS_EQUAL,
-            TokenType.EQUAL_EQUAL, TokenType.NOT_EQUAL,
+
+        operators = (
+            TokenType.GREATER,
+            TokenType.LESS,
+            TokenType.GREATER_EQUAL,
+            TokenType.LESS_EQUAL,
+            TokenType.EQUAL_EQUAL,
+            TokenType.NOT_EQUAL,
         )
 
-        while self.current().type in comparison_types:
+        while (
+            self.current() is not None
+            and self.current().type in operators
+        ):
             operator = self.advance().value
             right = self.parse_addition()
             expression = BinaryExpression(expression, operator, right)
@@ -260,8 +318,12 @@ class Parser:
     def parse_addition(self):
         expression = self.parse_multiplication()
 
-        while self.current().type in (
-            TokenType.PLUS, TokenType.MINUS
+        while (
+            self.current() is not None
+            and self.current().type in (
+                TokenType.PLUS,
+                TokenType.MINUS,
+            )
         ):
             operator = self.advance().value
             right = self.parse_multiplication()
@@ -270,23 +332,49 @@ class Parser:
         return expression
 
     def parse_multiplication(self):
-        expression = self.parse_primary()
+        expression = self.parse_unary()
 
-        while self.current().type in (
-            TokenType.MULTIPLY, TokenType.DIVIDE
+        while (
+            self.current() is not None
+            and self.current().type in (
+                TokenType.MULTIPLY,
+                TokenType.DIVIDE,
+            )
         ):
             operator = self.advance().value
-            right = self.parse_primary()
+            right = self.parse_unary()
             expression = BinaryExpression(expression, operator, right)
 
         return expression
 
+    def parse_unary(self):
+        if (
+            self.current() is not None
+            and self.current().type == TokenType.MINUS
+        ):
+            self.advance()
+            return BinaryExpression(
+                Literal(0),
+                "-",
+                self.parse_unary(),
+            )
+
+        return self.parse_primary()
+
     def parse_primary(self):
         token = self.current()
 
+        if token is None:
+            raise SyntaxError("Unexpected end of expression")
+
         if token.type == TokenType.NUMBER:
             self.advance()
-            return Literal(int(token.value))
+            value = (
+                float(token.value)
+                if "." in token.value
+                else int(token.value)
+            )
+            return Literal(value)
 
         if token.type == TokenType.STRING:
             self.advance()
@@ -295,23 +383,36 @@ class Parser:
         if token.type == TokenType.IDENTIFIER:
             name = self.advance().value
 
-            if self.match(TokenType.LPAREN):
+            if (
+                self.current() is not None
+                and self.current().type == TokenType.LPAREN
+            ):
+                arguments = self.parse_arguments()
+
                 if name == "input":
-                    self.expect(
-                        TokenType.RPAREN,
-                        "input() does not accept arguments"
-                    )
+                    if arguments:
+                        raise SyntaxError(
+                            "input() does not accept arguments"
+                        )
                     return InputExpression()
 
-                arguments = self.parse_arguments()
-                self.expect(TokenType.RPAREN, "Expected ')' after arguments")
+                if name in ("int", "str"):
+                    if len(arguments) != 1:
+                        raise SyntaxError(
+                            f"{name}() expects one argument"
+                        )
+                    return TypeConversion(name, arguments[0])
+
                 return FunctionCall(name, arguments)
 
             return Variable(name)
 
-        if self.match(TokenType.LPAREN):
+        if token.type == TokenType.LPAREN:
+            self.advance()
             expression = self.parse_expression()
             self.expect(TokenType.RPAREN, "Expected ')'")
             return expression
 
-        raise SyntaxError(f"Line {token.line}: Expected a value")
+        raise SyntaxError(
+            f"Unexpected expression token: {token.value!r}"
+        )

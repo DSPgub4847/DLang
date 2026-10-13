@@ -1,8 +1,9 @@
-print("What is your name?")
-name = input()
-print("Hello")
-print(name)
-
 print("Enter a number:")
-number = input()
-print(number)
+number = int(input())
+
+print("Add 10:")
+print(number + 10)
+
+print("Convert number to text:")
+text = str(number)
+print(text)

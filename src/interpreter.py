@@ -7,6 +7,7 @@ from parser import (
     ReturnStatement,
     FunctionCall,
     InputExpression,
+    TypeConversion,
     Variable,
     Literal,
     BinaryExpression,
@@ -25,7 +26,6 @@ class Interpreter:
         self.functions = {}
 
     def run(self):
-        # Register function definitions before execution.
         for statement in self.statements:
             if isinstance(statement, FunctionDefinition):
                 if statement.name in self.functions:
@@ -102,9 +102,7 @@ class Interpreter:
         ]
 
         previous_variables = self.variables
-        self.variables = dict(
-            zip(function.parameters, argument_values)
-        )
+        self.variables = dict(zip(function.parameters, argument_values))
 
         try:
             self.execute_block(function.body)
@@ -131,6 +129,24 @@ class Interpreter:
                 return input()
             except EOFError:
                 raise RuntimeError("No input provided") from None
+
+        if isinstance(expression, TypeConversion):
+            value = self.evaluate(expression.expression)
+
+            try:
+                if expression.conversion_type == "int":
+                    if isinstance(value, bool):
+                        return int(value)
+                    return int(value)
+
+                if expression.conversion_type == "str":
+                    return str(value)
+
+            except (ValueError, TypeError, OverflowError):
+                raise RuntimeError(
+                    f"Cannot convert {value!r} to "
+                    f"{expression.conversion_type}"
+                ) from None
 
         if isinstance(expression, FunctionCall):
             return self.call_function(
@@ -165,6 +181,7 @@ class Interpreter:
                     return left == right
                 if operator == "!=":
                     return left != right
+
             except TypeError:
                 raise RuntimeError(
                     "Incompatible value types in expression"
